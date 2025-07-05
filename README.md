@@ -13,6 +13,7 @@ If you, like me, want to be notified about new appointments via [notifications](
 ### MQTT-Library
 
 On your server running the script:
+
 pip install gmqtt
 
 ### Script
