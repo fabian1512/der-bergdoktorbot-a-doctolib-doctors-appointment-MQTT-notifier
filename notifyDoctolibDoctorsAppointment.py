@@ -2,99 +2,107 @@ from datetime import date, datetime, timedelta
 import json
 import urllib.parse
 import urllib.request
+import asyncio
+from gmqtt import Client as MQTTClient
 
-TELEGRAM_BOT_TOKEN = ''
-TELEGRAM_CHAT_ID = ''
-BOOKING_URL = 'https://www.doctolib.de/'
-AVAILABILITIES_URL = ''
-APPOINTMENT_NAME = None
-MOVE_BOOKING_URL = None
+# MQTT-Konfiguration
+BROKER_HOST = 'YOUR_BROKER'
+USERNAME = 'YOUR_USERNAME'
+PASSWORD = 'YOUR_PASSWORD'
+TOPIC = 'doctolib/availability'
+
+DOCTORS = [
+    {
+        'BOOKING_URL': 'https://www.doctolib.de/',
+        'AVAILABILITIES_URL': '',
+        'APPOINTMENT_NAME': 'Herr Dr. med. Mustermann',
+        'MOVE_BOOKING_URL': ''
+    },
+    # Beispiel für weiteren Arzt:
+    # {
+    #     'BOOKING_URL': 'https://www.doctolib.de/',
+    #     'AVAILABILITIES_URL': '',
+    #     'APPOINTMENT_NAME': 'Dr. Mustermann',
+    #     'MOVE_BOOKING_URL': ''
+    # },
+]
+
 UPCOMING_DAYS = 15
-MAX_DATETIME_IN_FUTURE = datetime.today() + timedelta(days = UPCOMING_DAYS)
+MAX_DATETIME_IN_FUTURE = datetime.today() + timedelta(days=UPCOMING_DAYS)
 NOTIFY_HOURLY = False
 
-if not (
-    TELEGRAM_BOT_TOKEN
-    or TELEGRAM_CHAT_ID
-    or BOOKING_URL
-    or AVAILABILITIES_URL
-    ) or UPCOMING_DAYS > 15:
-    exit()
+STOP = asyncio.Event()
 
-urlParts = urllib.parse.urlparse(AVAILABILITIES_URL)
-query = dict(urllib.parse.parse_qsl(urlParts.query))
-query.update({
-    'limit': UPCOMING_DAYS,
-    'start_date': date.today(),
-})
-newAvailabilitiesUrl = (urlParts
-                            ._replace(query = urllib.parse.urlencode(query))
-                            .geturl())
-request = (urllib
-                .request
-                .Request(newAvailabilitiesUrl))
-request.add_header(
-    'User-Agent',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 13_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36'
-)
-response = (urllib.request
-                    .urlopen(request)
-                    .read()
-                    .decode('utf-8'))
+def on_connect(client, flags, rc, properties):
+    print("✅ Verbunden mit MQTT Broker")
 
-availabilities = json.loads(response)
+def on_disconnect(client, packet, exc=None):
+    print("🔌 Verbindung getrennt")
+    STOP.set()
 
-slotsInNearFuture = availabilities['total']
-slotInNearFutureExist = slotsInNearFuture > 0
-earlierSlotExists = False
-if slotInNearFutureExist:
-    for day in availabilities['availabilities']:
-        if len(day['slots']) == 0:
-            continue;
-        nextDatetimeIso8601 = day['date']
-        nextDatetime = (datetime.fromisoformat(nextDatetimeIso8601)
-                                .replace(tzinfo = None))
-        if nextDatetime < MAX_DATETIME_IN_FUTURE:
-            earlierSlotExists = True
-            break;
+def on_publish(client, mid):
+    print("📤 JSON-Nachricht veröffentlicht")
 
-isOnTheHour = datetime.now().minute == 0
-isHourlyNotificationDue = isOnTheHour and NOTIFY_HOURLY
+async def send_mqtt_json(payload: dict):
+    client = MQTTClient("doctolib-json-client")
+    client.set_auth_credentials(USERNAME, PASSWORD)
+    client.on_connect = on_connect
+    client.on_disconnect = on_disconnect
+    client.on_publish = on_publish
 
-if not (earlierSlotExists or isHourlyNotificationDue):
-    exit()
+    await client.connect(BROKER_HOST)
+    client.publish(TOPIC, json.dumps(payload), qos=1)
+    await asyncio.sleep(1)
+    await client.disconnect()
 
-message = ''
-if APPOINTMENT_NAME:
-    message += f'👨‍⚕️👩‍⚕️ {APPOINTMENT_NAME}'
-    message += '\n'
+async def main():
+    for doctor in DOCTORS:
+        url = doctor.get('AVAILABILITIES_URL')
+        if not url:
+            continue
 
-if earlierSlotExists:
-    pluralSuffix = 's' if slotsInNearFuture > 1 else ''
-    message += f'🔥 {slotsInNearFuture} slot{pluralSuffix} within {UPCOMING_DAYS}d!'
-    message += '\n'
-    if MOVE_BOOKING_URL:
-        message += f'<a href="{MOVE_BOOKING_URL}">🚚 Move existing booking</a>.'
-        message += '\n'
+        parsed = urllib.parse.urlparse(url)
+        query = dict(urllib.parse.parse_qsl(parsed.query))
+        query.update({
+            'limit': UPCOMING_DAYS,
+            'start_date': date.today().isoformat(),
+        })
+        final_url = parsed._replace(query=urllib.parse.urlencode(query)).geturl()
 
-if isHourlyNotificationDue:
-    nextSlotDatetimeIso8601 = availabilities['next_slot']
-    nextSlotDate = (datetime.fromisoformat(nextSlotDatetimeIso8601)
-                                .strftime('%d %B %Y'))
-    message += f'🐌 slot <i>{nextSlotDate}</i>.'
-    message += '\n'
+        req = urllib.request.Request(final_url)
+        req.add_header('User-Agent', 'Mozilla/5.0')
+        with urllib.request.urlopen(req) as response:
+            data = json.loads(response.read().decode('utf-8'))
 
-message += f'Book now on <a href="{BOOKING_URL}">doctolib.de</a>.'
+        slots_total = data.get('total', 0)
+        slot_found = False
+        next_slot = None
 
-urlEncodedMessage = (urllib
-                        .parse
-                        .quote(message))
-(urllib
-    .request
-    .urlopen(
-        (f'https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage'
-        f'?chat_id={TELEGRAM_CHAT_ID}'
-        f'&text={urlEncodedMessage}'
-        f'&parse_mode=HTML'
-        f'&disable_web_page_preview=true')
-    ))
+        for day in data.get('availabilities', []):
+            if not day['slots']:
+                continue
+            dt = datetime.fromisoformat(day['date']).replace(tzinfo=None)
+            if dt < MAX_DATETIME_IN_FUTURE:
+                slot_found = True
+                next_slot = dt.date().isoformat()
+                break
+
+        is_on_the_hour = datetime.now().minute == 0
+        notify_due = is_on_the_hour and NOTIFY_HOURLY
+
+        if not (slot_found or notify_due):
+            continue
+
+        payload = {
+            "doctor": doctor.get('APPOINTMENT_NAME'),
+   			"available": slot_found,
+            "slots": slots_total,
+            "next_slot": next_slot,
+            "booking_url": doctor.get('BOOKING_URL'),
+            "move_booking_url": doctor.get('MOVE_BOOKING_URL'),
+        }
+
+        await send_mqtt_json(payload)
+
+if __name__ == '__main__':
+    asyncio.run(main())
