@@ -1,0 +1,24 @@
+alias: "Doctolib Termin "
+description: Benachrichtigt, wenn ein früher Termin über MQTT gemeldet wird
+triggers:
+  - topic: doctolib/availability
+    trigger: mqtt
+conditions:
+  - condition: template
+    value_template: "{{ trigger.payload_json.available == true }}"
+actions:
+  - data:
+      title: 📅 Neuer Doctolib-Termin!
+      message: >
+        {{ trigger.payload_json.doctor }} hat {{ trigger.payload_json.slots }}
+        verfügbare Slot{{ 's' if trigger.payload_json.slots != 1 else '' }}.
+        Nächster Termin: {{ trigger.payload_json.next_slot }}.
+    action: notify.YOUR_DEVICE
+  - data:
+      title: Doctolib Termin
+      message: >
+        Arzt: {{ trigger.payload_json.doctor }} Slots: {{
+        trigger.payload_json.slots }} Datum: {{ trigger.payload_json.next_slot
+        }} [Jetzt buchen]({{ trigger.payload_json.move_booking_url }})
+    action: persistent_notification.create
+mode: single
