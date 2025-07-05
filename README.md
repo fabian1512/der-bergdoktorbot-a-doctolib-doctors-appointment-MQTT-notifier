@@ -4,6 +4,8 @@ Inspired by mayrs/der-bergdoktorbot-a-doctolib-doctors-appointment-telegram-noti
 
 Get notifications about the most recent doctor's appointments on [doctolib.de](https://www.doctolib.de/) via mqtt payload. This script will notify you **every minute** as long as appointments exist within the next `UPCOMING_DAYS`. The next appointment outside of that threshold is additionally notified **on the hour**.
 
+If you, like me, want to be notified about new appointments via [notifications](https://www.home-assistant.io/integrations/notify/) in homeassistant, take a look at the automation provided in this fork.
+
 ℹ️ 🔒 🔧 Remember that this static script does not know anything about your doctolib details behind your login so you have to **monitor** and **adjust** it on the go to reduce unwanted notifications.
 
 ## Setup
