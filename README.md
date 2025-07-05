@@ -14,7 +14,10 @@ If you, like me, want to be notified about new appointments via [notifications](
 
 On your server running the script:
 
+```markdown
 pip install gmqtt
+```
+
 
 ### Script
 
