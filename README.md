@@ -1,38 +1,17 @@
-# Der BergdoktorBot – A Doctolib doctor's appointment Telegram notifier
+# Der BergdoktorBot – A Doctolib doctor's appointment MQTT notifier
 
-![Der BergdoktorBot banner](images/Der_Bergdoktor_banner_with_working_title_and_project_description.jpg)
+Inspired by mayrs/der-bergdoktorbot-a-doctolib-doctors-appointment-telegram-notifier
 
-Get Telegram notifications about the most recent doctor's appointments on [doctolib.de](https://www.doctolib.de/). This script will notify you **every minute** as long as appointments exist within the next `UPCOMING_DAYS`. The next appointment outside of that threshold is additionally notified **on the hour**.
+Get notifications about the most recent doctor's appointments on [doctolib.de](https://www.doctolib.de/) via mqtt payload. This script will notify you **every minute** as long as appointments exist within the next `UPCOMING_DAYS`. The next appointment outside of that threshold is additionally notified **on the hour**.
 
 ℹ️ 🔒 🔧 Remember that this static script does not know anything about your doctolib details behind your login so you have to **monitor** and **adjust** it on the go to reduce unwanted notifications.
 
 ## Setup
 
-### Telegram
+### MQTT-Library
 
-The setup follows these [instructions](https://sarafian.github.io/low-code/2020/03/24/create-private-telegram-chatbot.html). For simplicity I tried to compress it even more in the following step by step list:
-
-1. **Create** a Telegram bot using [@botfather](https://web.telegram.org/k/#@BotFather) ([FAQ](https://core.telegram.org/bots/faq)).
-   - Username: `@<NAME>Bot`
-   - Disable `Allow Groups?`
-   - Turn on `Group Privacy`
-   
-   The bot `Token` will be available once the bot is created.
-   <br>Write it down, you'll need it in a later step.
-2. **Create** a **private** group. Overyone in the group will see the messages from your bot.
-   - Group name: `MyPrivateGroup`
-   - Group Type: `private`
-   
-   Warning: **Do not** edit special permissions for users as this will [convert the group into a supergroup](https://stackoverflow.com/a/62291433) which **does not work** with this code.
-3. Temporarily **enable** `Allow Groups?` on the bot.
-4. **Add** the bot to the group.
-5. Immediately **deactivate** `Allow Groups?` on the bot after adding it to the group.
-6. **Post** a test message into the group via the app or the browser (required to get the next step running).
-   Start message with `/` in order for the bot to be able to read it (`Group Privacy` is turned on by default).
-7. **Retrieve** group `chat_id` by visiting `https://api.telegram.org/bot<BOT_TOKEN>/getUpdates` in the browser.
-   <br>Write it down, you'll need it in a later step.
-8. Let the bot **send** a test message via visiting `https://api.telegram.org/bot<BOT_TOKEN>/sendMessage?chat_id=<GROUP_CHAT_ID>&text=Test` in the browser.
-   <br>The message should appear in the group chat.
+On your server running the script:
+pip install gmqtt
 
 ### Script
 
@@ -75,25 +54,6 @@ E.g. this cron entry will run it every minute from 7:00 AM to 23:59 PM.
 
 Adjust those constants to get the most out of your notifications.
 
-### TELEGRAM_BOT_TOKEN
-
-Paste your Telegram bot `Token` in this constant.
-
-⚠️ The script will abort if you don't provide this data.
-
-Type `str`.
-
-Default `''`.
-
-### TELEGRAM_CHAT_ID
-
-Paste your Telegram `chat_id` in this constant.
-
-⚠️ The script will abort if you don't provide this data.
-
-Type `str`.
-
-Default `''`.
 
 ### BOOKING_URL
 
